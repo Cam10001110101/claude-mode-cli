@@ -291,7 +291,9 @@ ${chalk.bold('Providers:')}
   ollama-custom     Ollama Custom (192.168.86.101:11434)
 
 ${chalk.bold('Model shortcuts:')}
-  OpenRouter: sonnet, haiku, gpt120, glm47, gemini-pro, gemini-flash
+  OpenRouter (Premium): gpt52, gpt52-pro, gpt52-codex, opus, grok
+  OpenRouter (Value): deepseek, zai-glm47-flash, seed16, sonnet, haiku
+  OpenRouter (Existing): gpt120, glm47, gemini-pro, gemini-flash
   Ollama Cloud: gpt120, glm47, deepseek, minimax
   Ollama Local/Custom: gpt20, qwen3, qwen14, llama, glm47-cloud
 

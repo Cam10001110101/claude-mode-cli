@@ -52,6 +52,17 @@ export const providers: Record<string, Provider> = {
 // Model definitions per provider
 export const models: Record<string, Model[]> = {
   openrouter: [
+    // Premium / Frontier Models
+    { id: 'openai/gpt-5.2', name: 'GPT-5.2', shortcut: 'gpt52' },
+    { id: 'openai/gpt-5.2-pro', name: 'GPT-5.2 Pro', shortcut: 'gpt52-pro' },
+    { id: 'openai/gpt-5.2-codex', name: 'GPT-5.2 Codex', shortcut: 'gpt52-codex' },
+    { id: 'anthropic/claude-opus-4.5', name: 'Claude Opus 4.5', shortcut: 'opus' },
+    { id: 'x-ai/grok-4.1-fast', name: 'Grok 4.1 Fast', shortcut: 'grok' },
+    // Cost-Effective Performance
+    { id: 'deepseek/deepseek-v3.2', name: 'DeepSeek V3.2', shortcut: 'deepseek' },
+    { id: 'z-ai/glm-4.7-flash', name: 'Z.AI GLM 4.7 Flash', shortcut: 'zai-glm47-flash' },
+    { id: 'bytedance-seed/seed-1.6', name: 'Seed 1.6', shortcut: 'seed16' },
+    // Existing Models
     { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5', shortcut: 'sonnet' },
     { id: 'anthropic/claude-haiku-4.5', name: 'Claude Haiku 4.5', shortcut: 'haiku' },
     { id: '@preset/gpt-oss-120b-cerebras', name: 'GPT-OSS 120B (Cerebras)', shortcut: 'gpt120' },
