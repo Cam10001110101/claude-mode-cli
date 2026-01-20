@@ -7,6 +7,10 @@
     "exa": {
       "type": "http",
       "url": "https://mcp.exa.ai/mcp"
+    },
+    "claude-cloud": {
+      "type": "http",
+      "url": "https://mcp.claude-code.demos.build/mcp"
     }
   }
 }
