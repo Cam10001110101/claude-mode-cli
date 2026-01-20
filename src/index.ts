@@ -57,6 +57,7 @@ async function runClaude(
   provider: Provider,
   modelId: string,
   headless: boolean,
+  skipPermissions: boolean,
   prompt?: string
 ): Promise<void> {
   // Set environment variables
@@ -66,6 +67,10 @@ async function runClaude(
 
   // Build command arguments
   const args: string[] = ['--model', modelId];
+
+  if (skipPermissions) {
+    args.push('--dangerously-skip-permissions');
+  }
 
   if (headless && prompt) {
     args.push('-p', prompt, '--allowedTools', ALLOWED_TOOLS);
@@ -100,7 +105,7 @@ async function runClaude(
 // INTERACTIVE MODE
 // ============================================================================
 
-async function interactiveMode(): Promise<void> {
+async function interactiveMode(skipPermissions: boolean): Promise<void> {
   console.clear();
   printHeader('Claude Mode');
 
@@ -148,6 +153,22 @@ async function interactiveMode(): Promise<void> {
     });
   }
 
+  // Ask about skipping permissions (only if not already set via CLI flag)
+  if (!skipPermissions) {
+    skipPermissions = await select({
+      message: 'Skip permission prompts when executing commands?',
+      choices: [
+        { name: 'No (ask for permission)', value: false },
+        { name: 'Yes (skip all prompts)', value: true },
+      ],
+    });
+  }
+  console.log(
+    chalk.yellow('→ Skip permissions:') +
+      ' ' +
+      (skipPermissions ? chalk.red('Yes (⚠️ auto-approve)') : chalk.green('No (ask)'))
+  );
+
   // Execute
   const isHeadless = mode === 'headless';
   if (isHeadless) {
@@ -159,7 +180,7 @@ async function interactiveMode(): Promise<void> {
   printConfig(provider, modelId, isHeadless ? 'Headless' : 'Interactive');
 
   try {
-    await runClaude(provider, modelId, isHeadless, prompt);
+    await runClaude(provider, modelId, isHeadless, skipPermissions, prompt);
   } catch (error) {
     console.error(chalk.red('Error:'), error);
     process.exit(1);
@@ -173,6 +194,7 @@ async function interactiveMode(): Promise<void> {
 async function quickMode(
   providerArg: string,
   modelArg: string,
+  skipPermissions: boolean,
   modeArg?: string,
   promptArg?: string
 ): Promise<void> {
@@ -226,7 +248,7 @@ async function quickMode(
   printConfig(provider, modelId, isHeadless ? 'Headless' : 'Interactive');
 
   try {
-    await runClaude(provider, modelId, isHeadless, prompt);
+    await runClaude(provider, modelId, isHeadless, skipPermissions, prompt);
   } catch (error) {
     console.error(chalk.red('Error:'), error);
     process.exit(1);
@@ -277,10 +299,14 @@ ${chalk.bold('Mode shortcuts:')}
   terminal, t, interactive, i  - Interactive terminal mode
   headless, h, prompt, p       - Headless mode with prompt
 
+${chalk.bold('Options:')}
+  -d, --dangerously-skip-permissions  Skip permission prompts (⚠️ use with caution)
+
 ${chalk.bold('Examples:')}
   claude-mode                                    Interactive menu
   claude-mode openrouter sonnet                  Interactive with Claude Sonnet
   claude-mode ollama-local qwen3 h "list files"  Headless with local Qwen3
+  claude-mode --dangerously-skip-permissions     Skip all permission prompts
   claude-mode --list                             List all available models
 `
   )
@@ -294,6 +320,7 @@ program
   });
 
 program
+  .option('-d, --dangerously-skip-permissions', 'Skip permission prompts when executing commands')
   .option('-l, --list', 'List all available providers and models')
   .argument('[provider]', 'Provider (openrouter, ollama-cloud, ollama-local, ollama-custom)')
   .argument('[model]', 'Model ID or shortcut')
@@ -305,15 +332,17 @@ program
       return;
     }
 
+    const skipPermissions = options.dangerouslySkipPermissions || false;
+
     if (!provider) {
-      await interactiveMode();
+      await interactiveMode(skipPermissions);
     } else if (!model) {
       console.error(chalk.red('Error: Model is required when provider is specified'));
       console.log(chalk.gray('Usage: claude-mode <provider> <model> [mode] [prompt]'));
       console.log(chalk.gray('Run claude-mode --list to see available models'));
       process.exit(1);
     } else {
-      await quickMode(provider, model, mode, prompt);
+      await quickMode(provider, model, skipPermissions, mode, prompt);
     }
   });
 

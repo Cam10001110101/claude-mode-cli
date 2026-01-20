@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "llm-info": {
+      "type": "http",
+      "url": "https://llm-info.mcpcentral.io/mcp"
+    },
+    "exa": {
+      "type": "http",
+      "url": "https://mcp.exa.ai/mcp"
+    }
+  }
+}
