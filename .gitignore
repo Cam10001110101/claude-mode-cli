@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Private files with API keys
+.env
+claude-headless-private.md
+docs/claude-headless-private.md
+
+# OS files
+.DS_Store
