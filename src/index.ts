@@ -16,6 +16,7 @@ import {
   getProvider,
   getModels,
   getProviderKeys,
+  fetchOllamaModels,
   type Provider,
   type Model,
 } from './providers.js';
@@ -123,7 +124,7 @@ async function interactiveMode(skipPermissions: boolean): Promise<void> {
   console.log(chalk.yellow('→ Selected:') + ' ' + provider.name);
 
   // Select model
-  const providerModels = getModels(providerKey);
+  const providerModels = await getModels(providerKey);
   const modelId = await select({
     message: 'Select Model:',
     choices: providerModels.map((model) => ({
@@ -259,16 +260,27 @@ async function quickMode(
 // LIST COMMAND
 // ============================================================================
 
-function listModels(): void {
+async function listModels(): Promise<void> {
   console.log(chalk.bold('\nAvailable Models by Provider:\n'));
 
   for (const providerKey of getProviderKeys()) {
     const provider = providers[providerKey];
-    const providerModels = models[providerKey];
+
+    // For local Ollama providers, fetch dynamically
+    let providerModels: Model[];
+    if (providerKey === 'ollama-local' || providerKey === 'ollama-custom') {
+      providerModels = await getModels(providerKey);
+    } else {
+      providerModels = models[providerKey] || [];
+    }
 
     console.log(chalk.cyan(`${provider.name}:`));
-    for (const model of providerModels) {
-      console.log(`  ${chalk.green(model.shortcut.padEnd(14))} → ${model.id}`);
+    if (providerModels.length === 0) {
+      console.log(`  ${chalk.gray('(no models found)')}`);
+    } else {
+      for (const model of providerModels) {
+        console.log(`  ${chalk.green(model.shortcut.padEnd(14))} → ${model.id}`);
+      }
     }
     console.log('');
   }
@@ -317,8 +329,8 @@ ${chalk.bold('Examples:')}
 program
   .command('list', { isDefault: false })
   .description('List all available providers and models')
-  .action(() => {
-    listModels();
+  .action(async () => {
+    await listModels();
   });
 
 program
@@ -330,7 +342,7 @@ program
   .argument('[prompt]', 'Prompt for headless mode')
   .action(async (provider, model, mode, prompt, options) => {
     if (options.list) {
-      listModels();
+      await listModels();
       return;
     }
 
