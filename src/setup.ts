@@ -296,11 +296,10 @@ export async function configureProvider(
   // Collect custom URL for Ollama Custom
   if (providerKey === 'ollama-custom') {
     const existingUrl = provider.getBaseUrl();
-    const defaultUrl = existingUrl || 'http://192.168.86.101:11434';
 
     config.customUrl = await input({
       message: 'Enter Ollama URL:',
-      default: defaultUrl,
+      default: existingUrl || '',
       validate: (value) => {
         try {
           new URL(value);
@@ -512,7 +511,7 @@ export function buildEnvVars(providerConfigs: ProviderSetupConfig[]): Record<str
         envVars.OLLAMA_BASE_URL_LOCAL = 'http://localhost:11434';
         break;
       case 'ollama-custom':
-        if (config.customUrl) {
+        if (config.customUrl && config.customUrl.trim()) {
           envVars.OLLAMA_BASE_URL_CUSTOM = config.customUrl;
         }
         break;

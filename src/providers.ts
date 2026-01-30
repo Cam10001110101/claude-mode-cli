@@ -73,10 +73,10 @@ const builtInProviders: Record<string, Provider> = {
   'ollama-custom': {
     name: 'Ollama Custom',
     key: 'ollama-custom',
-    getBaseUrl: () => process.env.OLLAMA_BASE_URL_CUSTOM || 'http://192.168.86.101:11434',
+    getBaseUrl: () => process.env.OLLAMA_BASE_URL_CUSTOM || '',
     getAuthToken: () => 'ollama',
     getDescription: () => {
-      const url = process.env.OLLAMA_BASE_URL_CUSTOM || 'http://192.168.86.101:11434';
+      const url = process.env.OLLAMA_BASE_URL_CUSTOM || 'not configured';
       return `Ollama Custom (${url})`;
     },
     isBuiltIn: true,
