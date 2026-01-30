@@ -29,6 +29,13 @@ export enum ErrorCode {
   // Config errors
   CONFIG_PARSE_ERROR = 'CONFIG_PARSE_ERROR',
 
+  // Setup errors
+  SETUP_CONFIG_WRITE_FAILED = 'SETUP_CONFIG_WRITE_FAILED',
+  SETUP_ENV_WRITE_FAILED = 'SETUP_ENV_WRITE_FAILED',
+  SETUP_VALIDATION_FAILED = 'SETUP_VALIDATION_FAILED',
+  SETUP_CANCELLED = 'SETUP_CANCELLED',
+  SETUP_INCOMPLETE = 'SETUP_INCOMPLETE',
+
   // Unknown
   UNKNOWN = 'UNKNOWN',
 }
@@ -180,5 +187,54 @@ export function claudeNotFoundError(): ClaudeModeError {
     code: ErrorCode.CLAUDE_NOT_FOUND,
     message: 'Claude CLI not found in PATH',
     hint: 'Install Claude Code CLI: npm install -g @anthropic-ai/claude-code\nOr check that it is in your PATH.',
+  };
+}
+
+// ============================================================================
+// SETUP ERROR CREATORS
+// ============================================================================
+
+export const SETUP_CONFIG_WRITE_FAILED = ErrorCode.SETUP_CONFIG_WRITE_FAILED;
+export const SETUP_ENV_WRITE_FAILED = ErrorCode.SETUP_ENV_WRITE_FAILED;
+export const SETUP_VALIDATION_FAILED = ErrorCode.SETUP_VALIDATION_FAILED;
+export const SETUP_CANCELLED = ErrorCode.SETUP_CANCELLED;
+export const SETUP_INCOMPLETE = ErrorCode.SETUP_INCOMPLETE;
+
+export function setupConfigWriteError(message: string, hint?: string): ClaudeModeError {
+  return {
+    code: ErrorCode.SETUP_CONFIG_WRITE_FAILED,
+    message: `Failed to write config: ${message}`,
+    hint: hint || 'Check file permissions and try again, or use a different config location.',
+  };
+}
+
+export function setupEnvWriteError(message: string, hint?: string): ClaudeModeError {
+  return {
+    code: ErrorCode.SETUP_ENV_WRITE_FAILED,
+    message: `Failed to write .env file: ${message}`,
+    hint: hint || 'Check file permissions or specify a different location.',
+  };
+}
+
+export function setupValidationError(message?: string, hint?: string): ClaudeModeError {
+  return {
+    code: ErrorCode.SETUP_VALIDATION_FAILED,
+    message: message || 'Provider validation failed',
+    hint: hint || 'Check your API keys and network connectivity.',
+  };
+}
+
+export function setupCancelledError(): ClaudeModeError {
+  return {
+    code: ErrorCode.SETUP_CANCELLED,
+    message: 'Setup cancelled',
+  };
+}
+
+export function setupIncompleteError(message: string): ClaudeModeError {
+  return {
+    code: ErrorCode.SETUP_INCOMPLETE,
+    message: message,
+    hint: 'Run claude-mode setup to complete configuration.',
   };
 }

@@ -28,6 +28,9 @@ export interface Config {
   // Custom providers
   customProviders?: CustomProvider[];
 
+  // Setup state
+  configuredProviders?: string[];
+
   // Feature flags
   skipHealthCheck?: boolean;
   offlineMode?: boolean;
@@ -71,6 +74,7 @@ const DEFAULT_CONFIG: Required<Config> = {
   healthCheckTimeout: 2000,
   cacheTTL: 30000,
   customProviders: [],
+  configuredProviders: [],
   skipHealthCheck: false,
   offlineMode: false,
   headlessAllowedTools: 'Read,Edit,Write,Bash,Glob,Grep',

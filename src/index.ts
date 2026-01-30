@@ -2,7 +2,7 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { select, input } from '@inquirer/prompts';
+import { select, input, confirm } from '@inquirer/prompts';
 import { spawn, execSync } from 'child_process';
 import { config } from 'dotenv';
 import { fileURLToPath } from 'url';
@@ -28,6 +28,11 @@ import {
   getConfig,
   initConfig,
 } from './config.js';
+
+import {
+  runSetup,
+  detectSetupStatus,
+} from './setup.js';
 
 import {
   claudeNotFoundError,
@@ -63,6 +68,26 @@ function printConfig(provider: Provider, modelId: string, mode: string): void {
   console.log(chalk.cyan('Base URL:') + ' ' + provider.getBaseUrl());
   console.log(chalk.cyan('Mode:') + ' ' + mode);
   console.log('');
+}
+
+// ============================================================================
+// SETUP AUTO-DETECTION
+// ============================================================================
+
+function shouldTriggerSetup(): boolean {
+  const status = detectSetupStatus();
+
+  // First-time user - no config file
+  if (status === 'first-time') {
+    return true;
+  }
+
+  // Incomplete config - exists but no defaults or missing providers
+  if (status === 'incomplete') {
+    return true;
+  }
+
+  return false;
 }
 
 // ============================================================================
@@ -686,6 +711,21 @@ program
     printCompletion(shell);
   });
 
+// Setup command
+program
+  .command('setup')
+  .description('Interactive setup wizard for first-time configuration')
+  .option('-f, --force', 'Re-run setup even if config exists')
+  .option('-p, --provider <provider>', 'Configure only this provider')
+  .option('--skip-validation', 'Skip API key validation')
+  .action(async (options) => {
+    await runSetup({
+      force: options.force,
+      provider: options.provider,
+      skipValidation: options.skipValidation,
+    });
+  });
+
 // Main command
 program
   .option('-d, --dangerously-skip-permissions', 'Skip permission prompts when executing commands')
@@ -696,6 +736,19 @@ program
   .argument('[mode]', 'Mode (terminal/t, headless/h) or prompt for headless')
   .argument('[promptArg]', 'Prompt for headless mode')
   .action(async (provider, model, mode, promptArg, options) => {
+    // Auto-detect if setup is needed
+    if (shouldTriggerSetup()) {
+      const shouldSetup = await confirm({
+        message: 'No configuration found. Would you like to run setup?',
+        default: true,
+      });
+
+      if (shouldSetup) {
+        await runSetup({ force: false });
+        return;
+      }
+    }
+
     if (options.list) {
       await listModels();
       return;
