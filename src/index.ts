@@ -16,7 +16,6 @@ import {
   getProvider,
   getModels,
   getProviderKeys,
-  fetchOllamaModels,
   type Provider,
   type Model,
 } from './providers.js';
@@ -49,7 +48,7 @@ function printHeader(text: string): void {
 function printConfig(provider: Provider, modelId: string, mode: string): void {
   console.log(chalk.cyan('Provider:') + ' ' + provider.name);
   console.log(chalk.cyan('Model:') + ' ' + modelId);
-  console.log(chalk.cyan('Base URL:') + ' ' + provider.baseUrl);
+  console.log(chalk.cyan('Base URL:') + ' ' + provider.getBaseUrl());
   console.log(chalk.cyan('Mode:') + ' ' + mode);
   console.log('');
 }
@@ -61,8 +60,10 @@ async function runClaude(
   skipPermissions: boolean,
   prompt?: string
 ): Promise<void> {
+  const baseUrl = provider.getBaseUrl();
+
   // Set environment variables
-  process.env.ANTHROPIC_BASE_URL = provider.baseUrl;
+  process.env.ANTHROPIC_BASE_URL = baseUrl;
   process.env.ANTHROPIC_AUTH_TOKEN = provider.getAuthToken();
   process.env.ANTHROPIC_API_KEY = '';
 
@@ -82,7 +83,7 @@ async function runClaude(
     stdio: 'inherit',
     env: {
       ...process.env,
-      ANTHROPIC_BASE_URL: provider.baseUrl,
+      ANTHROPIC_BASE_URL: baseUrl,
       ANTHROPIC_AUTH_TOKEN: provider.getAuthToken(),
       ANTHROPIC_API_KEY: '',
     },
@@ -210,7 +211,7 @@ async function quickMode(
   }
 
   // Resolve model
-  const modelId = resolveModel(providerKey, modelArg);
+  const modelId = await resolveModel(providerKey, modelArg);
 
   // Determine mode
   let isHeadless = false;
@@ -266,9 +267,11 @@ async function listModels(): Promise<void> {
   for (const providerKey of getProviderKeys()) {
     const provider = providers[providerKey];
 
-    // For local Ollama providers, fetch dynamically
+    // For all Ollama providers, fetch dynamically
     let providerModels: Model[];
-    if (providerKey === 'ollama-local' || providerKey === 'ollama-custom') {
+    if (providerKey === 'ollama-local' ||
+        providerKey === 'ollama-custom' ||
+        providerKey === 'ollama-cloud') {
       providerModels = await getModels(providerKey);
     } else {
       providerModels = models[providerKey] || [];
@@ -298,9 +301,9 @@ ${chalk.bold('Claude Mode')} - Launch Claude Code with different providers
 
 ${chalk.bold('Providers:')}
   openrouter        OpenRouter API (Claude, Gemini, GPT-OSS, GLM)
-  ollama-cloud      Ollama Cloud
-  ollama-local      Ollama Local (localhost:11434)
-  ollama-custom     Ollama Custom (192.168.86.101:11434)
+  ollama-cloud      Ollama Cloud (OLLAMA_HOST)
+  ollama-local      Ollama Local (OLLAMA_BASE_URL_LOCAL)
+  ollama-custom     Ollama Custom (OLLAMA_BASE_URL_CUSTOM)
 
 ${chalk.bold('Model shortcuts:')}
   OpenRouter (Premium): gpt52, gpt52-pro, gpt52-codex, opus, grok
