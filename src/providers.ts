@@ -1,9 +1,17 @@
+import { loadConfig, getConfig, saveModelCache, getCachedModels, type CustomProvider } from './config.js';
+import { classifyError, type ClaudeModeError, ErrorCode } from './errors.js';
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
 export interface Provider {
   name: string;
   key: string;
   getBaseUrl: () => string;
   getAuthToken: () => string;
-  description: string;
+  getDescription: () => string;
+  isBuiltIn: boolean;
 }
 
 export interface Model {
@@ -17,39 +25,125 @@ export interface ProviderConfig {
   models: Model[];
 }
 
-// Provider definitions
-export const providers: Record<string, Provider> = {
+export interface HealthCheckResult {
+  provider: string;
+  healthy: boolean;
+  latencyMs?: number;
+  error?: ClaudeModeError;
+}
+
+// ============================================================================
+// BUILT-IN PROVIDER DEFINITIONS
+// ============================================================================
+
+const builtInProviders: Record<string, Provider> = {
   openrouter: {
     name: 'OpenRouter',
     key: 'openrouter',
     getBaseUrl: () => process.env.ANTHROPIC_BASE_URL || 'https://openrouter.ai/api',
     getAuthToken: () => process.env.ANTHROPIC_AUTH_TOKEN || process.env.OPEN_ROUTER_API_KEY || '',
-    description: 'OpenRouter API (Claude, Gemini, GPT-OSS, GLM)',
+    getDescription: () => {
+      const url = process.env.ANTHROPIC_BASE_URL || 'https://openrouter.ai/api';
+      return `OpenRouter API (${url})`;
+    },
+    isBuiltIn: true,
   },
   'ollama-cloud': {
     name: 'Ollama Cloud',
     key: 'ollama-cloud',
     getBaseUrl: () => process.env.OLLAMA_HOST || 'https://ollama.com',
     getAuthToken: () => process.env.OLLAMA_API_KEY || '',
-    description: 'Ollama Cloud',
+    getDescription: () => {
+      const url = process.env.OLLAMA_HOST || 'https://ollama.com';
+      return `Ollama Cloud (${url})`;
+    },
+    isBuiltIn: true,
   },
   'ollama-local': {
     name: 'Ollama Local',
     key: 'ollama-local',
     getBaseUrl: () => process.env.OLLAMA_BASE_URL_LOCAL || 'http://localhost:11434',
     getAuthToken: () => 'ollama',
-    description: 'Ollama Local',
+    getDescription: () => {
+      const url = process.env.OLLAMA_BASE_URL_LOCAL || 'http://localhost:11434';
+      return `Ollama Local (${url})`;
+    },
+    isBuiltIn: true,
   },
   'ollama-custom': {
     name: 'Ollama Custom',
     key: 'ollama-custom',
     getBaseUrl: () => process.env.OLLAMA_BASE_URL_CUSTOM || 'http://192.168.86.101:11434',
     getAuthToken: () => 'ollama',
-    description: 'Ollama Custom',
+    getDescription: () => {
+      const url = process.env.OLLAMA_BASE_URL_CUSTOM || 'http://192.168.86.101:11434';
+      return `Ollama Custom (${url})`;
+    },
+    isBuiltIn: true,
   },
 };
 
-// Model definitions per provider
+// ============================================================================
+// PROVIDERS REGISTRY (includes custom providers)
+// ============================================================================
+
+let _providersCache: Record<string, Provider> | null = null;
+
+function createCustomProvider(custom: CustomProvider): Provider {
+  return {
+    name: custom.name,
+    key: custom.key,
+    getBaseUrl: () => custom.baseUrl,
+    getAuthToken: () => {
+      if (custom.authToken) return custom.authToken;
+      if (custom.authEnvVar) return process.env[custom.authEnvVar] || '';
+      return '';
+    },
+    getDescription: () => custom.description || `${custom.name} (${custom.baseUrl})`,
+    isBuiltIn: false,
+  };
+}
+
+export function getProviders(): Record<string, Provider> {
+  if (_providersCache) {
+    return _providersCache;
+  }
+
+  const config = loadConfig();
+  const providers = { ...builtInProviders };
+
+  // Add custom providers from config
+  if (config.customProviders) {
+    for (const custom of config.customProviders) {
+      if (custom.key && custom.name && custom.baseUrl) {
+        providers[custom.key] = createCustomProvider(custom);
+      }
+    }
+  }
+
+  _providersCache = providers;
+  return providers;
+}
+
+export function clearProvidersCache(): void {
+  _providersCache = null;
+}
+
+// Legacy export for backward compatibility
+export const providers = new Proxy({} as Record<string, Provider>, {
+  get: (_, key: string) => getProviders()[key],
+  ownKeys: () => Object.keys(getProviders()),
+  getOwnPropertyDescriptor: (_, key: string) => ({
+    enumerable: true,
+    configurable: true,
+    value: getProviders()[key],
+  }),
+});
+
+// ============================================================================
+// MODEL DEFINITIONS (static for non-Ollama providers)
+// ============================================================================
+
 export const models: Record<string, Model[]> = {
   openrouter: [
     // Premium / Frontier Models
@@ -73,14 +167,42 @@ export const models: Record<string, Model[]> = {
   // Ollama models are dynamically fetched via API
 };
 
-// Model shortcut resolver
+// ============================================================================
+// PROVIDER RESOLUTION
+// ============================================================================
+
+const providerAliases: Record<string, string> = {
+  or: 'openrouter',
+  open: 'openrouter',
+  oc: 'ollama-cloud',
+  cloud: 'ollama-cloud',
+  ol: 'ollama-local',
+  local: 'ollama-local',
+  custom: 'ollama-custom',
+  remote: 'ollama-custom',
+};
+
+export function resolveProvider(shortcut: string): string {
+  return providerAliases[shortcut] || shortcut;
+}
+
+export function getProviderKeys(): string[] {
+  return Object.keys(getProviders());
+}
+
+export function getProvider(key: string): Provider | undefined {
+  return getProviders()[resolveProvider(key)];
+}
+
+// ============================================================================
+// MODEL RESOLUTION
+// ============================================================================
+
 export async function resolveModel(providerKey: string, shortcut: string): Promise<string> {
   const resolvedKey = resolveProvider(providerKey);
 
   // For Ollama providers, fetch models dynamically
-  if (resolvedKey === 'ollama-local' ||
-      resolvedKey === 'ollama-custom' ||
-      resolvedKey === 'ollama-cloud') {
+  if (isOllamaProvider(resolvedKey)) {
     const ollamaModels = await getOllamaModels(resolvedKey);
     const model = ollamaModels.find(
       (m) => m.shortcut === shortcut || m.id === shortcut || m.name.toLowerCase() === shortcut.toLowerCase()
@@ -98,49 +220,30 @@ export async function resolveModel(providerKey: string, shortcut: string): Promi
   return model?.id || shortcut;
 }
 
-// Provider shortcut resolver
-export function resolveProvider(shortcut: string): string {
-  const aliases: Record<string, string> = {
-    or: 'openrouter',
-    open: 'openrouter',
-    oc: 'ollama-cloud',
-    cloud: 'ollama-cloud',
-    ol: 'ollama-local',
-    local: 'ollama-local',
-    custom: 'ollama-custom',
-    remote: 'ollama-custom',
-  };
-  return aliases[shortcut] || shortcut;
-}
-
-// Get all provider keys
-export function getProviderKeys(): string[] {
-  return Object.keys(providers);
-}
-
-// Get provider by key
-export function getProvider(key: string): Provider | undefined {
-  return providers[resolveProvider(key)];
-}
-
-// Get models for a provider
 export async function getModels(providerKey: string): Promise<Model[]> {
   const resolvedKey = resolveProvider(providerKey);
 
   // For all Ollama providers, fetch models dynamically
-  if (resolvedKey === 'ollama-local' ||
-      resolvedKey === 'ollama-custom' ||
-      resolvedKey === 'ollama-cloud') {
+  if (isOllamaProvider(resolvedKey)) {
     return getOllamaModels(resolvedKey);
   }
 
   return models[resolvedKey] || [];
 }
 
-// Dynamic Ollama model discovery
-// Cache structure: Map<providerKey, { models: Model[], timestamp: number }>
+// ============================================================================
+// OLLAMA MODEL DISCOVERY
+// ============================================================================
+
+function isOllamaProvider(providerKey: string): boolean {
+  return providerKey === 'ollama-local' ||
+         providerKey === 'ollama-custom' ||
+         providerKey === 'ollama-cloud' ||
+         providerKey.startsWith('ollama-');
+}
+
+// In-memory cache
 const _ollamaModelCache = new Map<string, { models: Model[]; timestamp: number }>();
-const OLLAMA_CACHE_TTL = 30000; // 30 seconds
 
 export function clearOllamaModelCache(providerKey?: string): void {
   if (providerKey) {
@@ -150,53 +253,186 @@ export function clearOllamaModelCache(providerKey?: string): void {
   }
 }
 
-async function fetchOllamaModelsFromAPI(baseUrl: string): Promise<Model[]> {
+async function fetchOllamaModelsFromAPI(baseUrl: string, timeout: number): Promise<Model[]> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+
   try {
-    const response = await fetch(`${baseUrl}/v1/models`);
+    const response = await fetch(`${baseUrl}/v1/models`, {
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
     const data = await response.json();
-
-    // Response format: { object: "list", data: [...] }
     const models: Model[] = [];
 
     if (data.data && Array.isArray(data.data)) {
       for (const model of data.data) {
         models.push({
           id: model.id,
-          name: model.id, // Use full ID as display name
-          shortcut: model.id, // Use full ID as shortcut
+          name: model.id,
+          shortcut: model.id,
         });
       }
     }
 
     return models;
   } catch (error) {
-    console.error(`Failed to fetch models from ${baseUrl}:`, error);
-    return [];
+    clearTimeout(timeoutId);
+
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Connection timed out');
+    }
+    throw error;
   }
 }
 
 async function getOllamaModels(providerKey: string): Promise<Model[]> {
   const now = Date.now();
+  const cacheTTL = getConfig('cacheTTL') || 30000;
   const cached = _ollamaModelCache.get(providerKey);
 
-  // Return cached models if still valid
-  if (cached && now - cached.timestamp < OLLAMA_CACHE_TTL) {
+  // Return in-memory cached models if still valid
+  if (cached && now - cached.timestamp < cacheTTL) {
     return cached.models;
   }
 
-  const provider = providers[providerKey];
+  const allProviders = getProviders();
+  const provider = allProviders[providerKey];
   if (!provider) return [];
 
+  const timeout = getConfig('modelDiscoveryTimeout') || 5000;
+
   try {
-    const models = await fetchOllamaModelsFromAPI(provider.getBaseUrl());
+    const models = await fetchOllamaModelsFromAPI(provider.getBaseUrl(), timeout);
+
+    // Update in-memory cache
     _ollamaModelCache.set(providerKey, { models, timestamp: now });
+
+    // Persist to disk cache
+    saveModelCache(providerKey, models);
+
     return models;
   } catch (error) {
-    console.error(`Failed to fetch Ollama models for ${providerKey}:`, error);
+    // Try to use disk cache as fallback
+    const diskCached = getCachedModels(providerKey);
+    if (diskCached && diskCached.length > 0) {
+      console.warn(`Warning: Using cached models for ${providerKey} (API unreachable)`);
+      return diskCached;
+    }
+
+    // Classify and log the error
+    const classified = classifyError(error);
+    if (classified.code !== ErrorCode.UNKNOWN) {
+      console.error(`Failed to fetch models from ${providerKey}: ${classified.message}`);
+      if (classified.hint) {
+        console.error(`Hint: ${classified.hint}`);
+      }
+    }
+
     return [];
   }
+}
+
+// ============================================================================
+// HEALTH CHECK
+// ============================================================================
+
+export async function checkProviderHealth(providerKey: string): Promise<HealthCheckResult> {
+  const allProviders = getProviders();
+  const provider = allProviders[providerKey];
+
+  if (!provider) {
+    return {
+      provider: providerKey,
+      healthy: false,
+      error: {
+        code: ErrorCode.PROVIDER_NOT_FOUND,
+        message: `Provider not found: ${providerKey}`,
+      },
+    };
+  }
+
+  const timeout = getConfig('healthCheckTimeout') || 2000;
+  const baseUrl = provider.getBaseUrl();
+  const startTime = Date.now();
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    // Try to hit the models endpoint (works for Ollama)
+    // For OpenRouter, we'd need a different endpoint
+    let healthUrl = `${baseUrl}/v1/models`;
+
+    // OpenRouter uses a different health check
+    if (providerKey === 'openrouter') {
+      healthUrl = `${baseUrl}/v1/models`;
+    }
+
+    const response = await fetch(healthUrl, {
+      signal: controller.signal,
+      headers: provider.getAuthToken() ? {
+        'Authorization': `Bearer ${provider.getAuthToken()}`,
+      } : {},
+    });
+
+    clearTimeout(timeoutId);
+    const latencyMs = Date.now() - startTime;
+
+    if (response.ok) {
+      return {
+        provider: providerKey,
+        healthy: true,
+        latencyMs,
+      };
+    }
+
+    // Handle specific HTTP errors
+    if (response.status === 401 || response.status === 403) {
+      return {
+        provider: providerKey,
+        healthy: false,
+        latencyMs,
+        error: {
+          code: ErrorCode.AUTH_INVALID,
+          message: `Authentication failed (${response.status})`,
+          hint: 'Check your API key configuration.',
+        },
+      };
+    }
+
+    return {
+      provider: providerKey,
+      healthy: false,
+      latencyMs,
+      error: {
+        code: ErrorCode.PROVIDER_UNAVAILABLE,
+        message: `HTTP ${response.status}: ${response.statusText}`,
+      },
+    };
+  } catch (error) {
+    clearTimeout(timeoutId);
+    const latencyMs = Date.now() - startTime;
+
+    return {
+      provider: providerKey,
+      healthy: false,
+      latencyMs,
+      error: classifyError(error),
+    };
+  }
+}
+
+export async function checkAllProvidersHealth(): Promise<HealthCheckResult[]> {
+  const providerKeys = getProviderKeys();
+  const results = await Promise.all(
+    providerKeys.map((key) => checkProviderHealth(key))
+  );
+  return results;
 }
