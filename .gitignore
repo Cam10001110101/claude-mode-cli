@@ -8,8 +8,7 @@ dist/
 .env
 .mcp.json
 claude-mode.json
-claude-headless-private.md
-docs/claude-headless-private.md
+
 
 # OS files
 .DS_Store
