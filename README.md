@@ -1,5 +1,7 @@
 # Claude Mode
 
+![npm version](https://img.shields.io/npm/v/%40cbuk100011%2Fclaude-mode)
+
 A Node.js CLI launcher for Claude Code that supports multiple AI providers and models.
 
 ## Features
@@ -17,12 +19,19 @@ A Node.js CLI launcher for Claude Code that supports multiple AI providers and m
 
 ## Installation
 
+### npm Package (Recommended)
+
+```bash
+# Install globally
+npm install -g @cbuk100011/claude-mode
+```
+
 ### From Source
 
 ```bash
 # Clone the repository
-git clone <repo-url>
-cd claude-mode
+git clone https://github.com/Cam10001110101/claude-mode-cli.git
+cd claude-mode-cli
 
 # Install dependencies
 npm install
@@ -30,14 +39,8 @@ npm install
 # Build
 npm run build
 
-# Link globally (optional)
+# Link globally
 npm link
-```
-
-### Global Installation (after npm publish)
-
-```bash
-npm install -g claude-mode
 ```
 
 ## Usage
@@ -293,7 +296,7 @@ npm run typecheck
 ## Project Structure
 
 ```
-claude-mode/
+claude-mode-cli/
 ├── src/
 │   ├── index.ts      # Main CLI entry point
 │   ├── providers.ts  # Provider and model configurations

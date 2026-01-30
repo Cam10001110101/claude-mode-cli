@@ -1,5 +1,5 @@
 {
-  "name": "claude-mode",
+  "name": "@cbuk100011/claude-mode",
   "version": "1.2.0",
   "description": "CLI launcher for Claude Code with multiple AI providers",
   "type": "module",
@@ -50,5 +50,13 @@
     "cli"
   ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Cam10001110101/claude-mode-cli.git"
+  },
+  "homepage": "https://github.com/Cam10001110101/claude-mode-cli#readme",
+  "bugs": {
+    "url": "https://github.com/Cam10001110101/claude-mode-cli/issues"
+  }
 }
