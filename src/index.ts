@@ -112,6 +112,12 @@ async function runClaude(
   process.env.ANTHROPIC_AUTH_TOKEN = provider.getAuthToken();
   process.env.ANTHROPIC_API_KEY = '';
 
+  // Set Claude Code model configuration (all types use the same model)
+  process.env.ANTHROPIC_DEFAULT_OPUS_MODEL = modelId;
+  process.env.ANTHROPIC_DEFAULT_SONNET_MODEL = modelId;
+  process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = modelId;
+  process.env.CLAUDE_CODE_SUBAGENT_MODEL = modelId;
+
   // Build command arguments
   const args: string[] = ['--model', modelId];
 
@@ -135,6 +141,10 @@ async function runClaude(
       ANTHROPIC_BASE_URL: baseUrl,
       ANTHROPIC_AUTH_TOKEN: provider.getAuthToken(),
       ANTHROPIC_API_KEY: '',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: modelId,
+      ANTHROPIC_DEFAULT_SONNET_MODEL: modelId,
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: modelId,
+      CLAUDE_CODE_SUBAGENT_MODEL: modelId,
     },
   });
 
