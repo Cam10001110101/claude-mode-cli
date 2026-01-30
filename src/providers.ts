@@ -163,6 +163,7 @@ export const models: Record<string, Model[]> = {
     { id: 'z-ai/glm-4.7', name: 'Z.AI GLM 4.7', shortcut: 'zai-glm47' },
     { id: 'google/gemini-3-pro-preview', name: 'Gemini 3 Pro Preview', shortcut: 'gemini-pro' },
     { id: 'google/gemini-3-flash-preview', name: 'Gemini 3 Flash Preview', shortcut: 'gemini-flash' },
+    { id: 'openrouter/auto', name: 'OpenRouter Auto', shortcut: 'auto' },
   ],
   // Ollama models are dynamically fetched via API
 };
