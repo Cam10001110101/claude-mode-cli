@@ -66,7 +66,10 @@ Specify provider, model, and optionally mode/prompt:
 claude-mode openrouter sonnet
 claude-mode ollama-local qwen3
 
-# Headless mode with prompt
+# Headless mode with default provider/model
+claude-mode -p "list files"
+
+# Headless mode with specified provider/model
 claude-mode ollama-local qwen3 h "list all TypeScript files"
 claude-mode ollama-cloud glm47 headless "explain this code"
 

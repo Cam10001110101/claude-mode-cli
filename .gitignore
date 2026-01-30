@@ -6,6 +6,7 @@ dist/
 
 # Private files with API keys
 .env
+.mcp.json
 claude-headless-private.md
 docs/claude-headless-private.md
 
