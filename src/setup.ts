@@ -78,7 +78,17 @@ function getConfigPath(): string {
 }
 
 function getEnvPath(envPath?: string): string {
-  return envPath || path.join(process.cwd(), '.env');
+  if (envPath) return envPath;
+  // Default global env file location
+  return path.join(homedir(), '.claude-mode', '.env');
+}
+
+// Helper to ensure directory exists before writing env files
+function ensureEnvDirExists(envPath: string): void {
+  const dir = path.dirname(envPath);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
 }
 
 // ============================================================================
@@ -575,6 +585,7 @@ export function formatEnvFile(envVars: Record<string, string>): string {
 
 export function mergeEnvFile(envVars: Record<string, string>, envPath?: string): void {
   const targetPath = getEnvPath(envPath);
+  ensureEnvDirExists(targetPath);
   const existingVars = loadEnvFile(targetPath);
 
   // Merge new vars with existing (new vars take precedence)
@@ -590,7 +601,6 @@ export function mergeEnvFile(envVars: Record<string, string>, envPath?: string):
 
   // Add all merged vars
   for (const [key, value] of Object.entries(merged)) {
-    // Skip claude-mode specific metadata
     if (!key.startsWith('_claude_mode_')) {
       lines.push(`${key}=${value}`);
     }
@@ -606,6 +616,7 @@ export function mergeEnvFile(envVars: Record<string, string>, envPath?: string):
 
 export function saveEnvFile(envVars: Record<string, string>, envPath?: string): void {
   const targetPath = getEnvPath(envPath);
+  ensureEnvDirExists(targetPath);
 
   try {
     const content = formatEnvFile(envVars);
@@ -629,26 +640,17 @@ export function loadEnvFile(envPath?: string): Record<string, string> {
 
     for (const line of content.split('\n')) {
       const trimmed = line.trim();
-      // Skip comments and empty lines
-      if (trimmed === '' || trimmed.startsWith('#')) {
-        continue;
-      }
-
+      if (trimmed === '' || trimmed.startsWith('#')) continue;
       const eqIndex = trimmed.indexOf('=');
       if (eqIndex > 0) {
         const key = trimmed.substring(0, eqIndex).trim();
         let value = trimmed.substring(eqIndex + 1).trim();
-
-        // Remove quotes if present
-        if ((value.startsWith('"') && value.endsWith('"')) ||
-            (value.startsWith("'") && value.endsWith("'"))) {
+        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'")) {
           value = value.slice(1, -1);
         }
-
         vars[key] = value;
       }
     }
-
     return vars;
   } catch {
     return {};
@@ -660,24 +662,18 @@ export function saveConfiguration(
   defaults: { provider: string; model: string },
   currentConfig?: Config
 ): void {
-  // Build environment variables
   const envVars = buildEnvVars(providerConfigs);
-
-  // Load existing config
   let config: Config = currentConfig || loadConfig();
 
-  // Update config
   config.defaultProvider = defaults.provider;
   config.defaultModel = defaults.model;
   config.configuredProviders = providerConfigs.map((c) => c.key);
 
-  // Save config
   try {
     const configDir = getConfigDir();
     if (!existsSync(configDir)) {
       mkdirSync(configDir, { recursive: true });
     }
-
     const configPath = getConfigPath();
     writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
   } catch (error) {
@@ -685,7 +681,6 @@ export function saveConfiguration(
     throw setupConfigWriteError(classified.message, classified.hint);
   }
 
-  // Save env file (merge if exists, create new if not)
   if (existsSync(getEnvPath())) {
     mergeEnvFile(envVars);
   } else {
@@ -738,86 +733,49 @@ export function displaySuccess(
 export async function runSetup(options: SetupOptions = {}): Promise<void> {
   try {
     const { force = false, provider: forceProvider, skipValidation = false } = options;
-
-    // Detect setup status
     const status = detectSetupStatus();
     const isFirstTime = status === 'first-time';
 
-    // If not forced and not first-time, ask if they want to update
     if (!force && !isFirstTime) {
       const shouldContinue = await displayUpdatePrompt();
-      if (!shouldContinue) {
-        return;
-      }
+      if (!shouldContinue) return;
     }
 
-    // Welcome screen
     await displayWelcome(isFirstTime);
-
-    // Select providers
     const providerKeys = await selectProviders(forceProvider);
-
-    // Configure each provider
     const providerConfigs: ProviderSetupConfig[] = [];
     const currentConfig = loadConfig();
 
     for (const providerKey of providerKeys) {
       try {
-        const config = await configureProvider(providerKey, skipValidation);
-        providerConfigs.push(config);
+        const cfg = await configureProvider(providerKey, skipValidation);
+        providerConfigs.push(cfg);
       } catch (error) {
-        // If a provider fails to configure, ask whether to continue
         console.log('');
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        console.log(chalk.yellow(`Failed to configure ${providerKey}: ${errorMessage}`));
-
-        const shouldContinue = await confirm({
-          message: 'Continue with remaining providers?',
-          default: true,
-        });
-
-        if (!shouldContinue) {
-          throw setupCancelledError();
-        }
+        const msg = error instanceof Error ? error.message : String(error);
+        console.log(chalk.yellow(`Failed to configure ${providerKey}: ${msg}`));
+        const cont = await confirm({ message: 'Continue with remaining providers?', default: true });
+        if (!cont) throw setupCancelledError();
       }
     }
 
-    if (providerConfigs.length === 0) {
-      throw setupIncompleteError('No providers were configured');
-    }
+    if (providerConfigs.length === 0) throw setupIncompleteError('No providers were configured');
 
-    // Get current defaults if they exist
-    let currentDefaults: { provider: string; model: string } | undefined;
+    let currentDefaults;
     if (currentConfig.defaultProvider && currentConfig.defaultModel) {
-      currentDefaults = {
-        provider: currentConfig.defaultProvider,
-        model: currentConfig.defaultModel,
-      };
+      currentDefaults = { provider: currentConfig.defaultProvider, model: currentConfig.defaultModel };
     }
 
-    // Select defaults
-    const configuredProviderKeys = providerConfigs.map((c) => c.key);
-    const defaults = await selectDefaults(configuredProviderKeys, currentDefaults);
-
-    // Review and confirm
+    const defaults = await selectDefaults(providerConfigs.map(c => c.key), currentDefaults);
     const confirmed = await reviewAndConfirm(providerConfigs, defaults, currentConfig);
+    if (!confirmed) throw setupCancelledError();
 
-    if (!confirmed) {
-      throw setupCancelledError();
-    }
-
-    // Save configuration
     console.log('');
     console.log(chalk.gray('Saving configuration...'));
     saveConfiguration(providerConfigs, defaults, currentConfig);
-
-    // Display success
     displaySuccess(providerConfigs, defaults);
-
   } catch (error) {
     const classified = classifyError(error);
-
-    // Handle setup-specific errors
     if (classified.message === 'Setup cancelled') {
       console.log('');
       console.log(chalk.yellow('Setup cancelled.'));
@@ -825,16 +783,12 @@ export async function runSetup(options: SetupOptions = {}): Promise<void> {
       console.log('');
       return;
     }
-
-    // Handle other errors
     console.log('');
     console.log(chalk.red('Setup failed:'));
     printError(classified);
     console.log('');
     console.log(chalk.gray('You can run ' + chalk.cyan('claude-mode setup') + ' to try again.'));
     console.log('');
-
-    // Exit with error code
     process.exit(1);
   }
 }

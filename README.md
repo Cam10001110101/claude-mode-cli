@@ -337,6 +337,11 @@ claude-mode config init
 # Then edit ~/.claude-mode/claude-mode.json
 ```
 
+## Roadmap
+- Secure key storage
+- Additional support for providers/models
+- Additional support for Codex, Gemini CLI, etc.
+
 ## License
 
 MIT
